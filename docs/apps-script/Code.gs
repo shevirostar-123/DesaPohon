@@ -14,7 +14,7 @@ const ZONA_WAKTU = 'Asia/Jakarta';
 const KONDISI = ['Sehat', 'Cukup', 'Buruk', 'Mati'];
 const SHEET_POHON = 'Pohon';
 const SHEET_UPDATE = 'Update';
-const H_POHON = ['id', 'jenis', 'pemilik', 'lat', 'lng', 'tanam', 'dibuat', 'device_id'];
+const H_POHON = ['id', 'jenis', 'pemilik', 'lat', 'lng', 'tanam', 'dibuat', 'device_id', 'akurasi_m'];
 const H_UPDATE = ['waktu', 'id', 'bulan', 'tinggi_cm', 'diameter_cm', 'kondisi', 'catatan', 'foto_id', 'pelapor', 'device_id'];
 const KOLOM_TEKS = ['id', 'bulan', 'tanam'];   // dipaksa teks agar Sheet tidak mengubahnya jadi tanggal
 const KOLOM_RAHASIA = ['device_id'];            // tidak pernah dikirim ke website
@@ -56,6 +56,7 @@ function doPost(e) {
     }
     if (b.action === 'daftar') return keluar_(daftar_(b));
     if (b.action === 'update') return keluar_(update_(b));
+    if (b.action === 'lokasi') return keluar_(lokasi_(b));
     return keluar_({ ok: false, error: 'Aksi tidak dikenal.' });
   } catch (err) {
     return keluar_({ ok: false, error: err.pesan ? err.message : 'Terjadi kesalahan di server. Coba lagi.' });
@@ -71,6 +72,7 @@ function daftar_(b) {
   const pemilik = teks_(b.pemilik, 80, 'Nama pemilik/penanam');
   const lat = angka_(b.lat, -90, 90, 'Lokasi (lat)');
   const lng = angka_(b.lng, -180, 180, 'Lokasi (lng)');
+  const akurasi = opsional_(b.akurasi, 0, 100000, 'Akurasi lokasi');
   const tanam = String(b.tanam || '').trim();
   if (tanam && !/^\d{4}-\d{2}-\d{2}$/.test(tanam)) throw gagal_('Tanggal tanam tidak valid.');
 
@@ -83,10 +85,28 @@ function daftar_(b) {
   const id = 'POHON-' + ('0000' + (maks + 1)).slice(-4);
   const baris = {
     id: id, jenis: jenis, pemilik: pemilik, lat: lat, lng: lng, tanam: tanam,
-    dibuat: waktuSekarang_(), device_id: teks_(b.device, 60, null, true),
+    dibuat: waktuSekarang_(), device_id: teks_(b.device, 60, null, true), akurasi_m: akurasi,
   };
   sh.appendRow(H_POHON.map(function (h) { return baris[h]; }));
   return { ok: true, id: id };
+}
+
+/** Perbarui lokasi pohon yang sudah terdaftar (mis. saat berdiri di dekat pohon dengan GPS HP). */
+function lokasi_(b) {
+  const id = String(b.id || '').trim().toUpperCase();
+  const lat = angka_(b.lat, -90, 90, 'Lokasi (lat)');
+  const lng = angka_(b.lng, -180, 180, 'Lokasi (lng)');
+  const akurasi = opsional_(b.akurasi, 0, 100000, 'Akurasi lokasi');
+  const sh = sheet_(SHEET_POHON, H_POHON);
+  const data = sh.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === id) {
+      sh.getRange(i + 1, H_POHON.indexOf('lat') + 1, 1, 2).setValues([[lat, lng]]);
+      sh.getRange(i + 1, H_POHON.indexOf('akurasi_m') + 1).setValue(akurasi);
+      return { ok: true };
+    }
+  }
+  throw gagal_('Kode pohon tidak ditemukan.');
 }
 
 function update_(b) {
@@ -161,6 +181,10 @@ function sheet_(nama, header) {
     });
     sh.getRange(1, 1, 1, header.length).setValues([header]).setFontWeight('bold');
     sh.setFrozenRows(1);
+  } else {
+    // Sheet lama: tambahkan judul kolom baru (mis. akurasi_m) bila belum ada
+    const ada = sh.getRange(1, 1, 1, header.length).getValues()[0];
+    if (header.some(function (h, i) { return ada[i] !== h; })) sh.getRange(1, 1, 1, header.length).setValues([header]).setFontWeight('bold');
   }
   return sh;
 }

@@ -250,9 +250,9 @@
   // ---------- Unduh CSV ----------
   function unduhCsv() {
     const A_ = A(), jenis = $('#db-jenis').value, semua = A_.semua(), rows = jenis ? semua.filter((t) => t.jenis === jenis) : semua;
-    const kepala = ['kode', 'jenis', 'pemilik', 'lat', 'lng', 'tanggal_tanam', 'kondisi_terakhir', 'tinggi_cm', 'pertumbuhan_cm_per_bulan', 'update_terakhir', 'sudah_update_bulan_ini'];
+    const kepala = ['kode', 'jenis', 'pemilik', 'lat', 'lng', 'tanggal_tanam', 'kondisi_terakhir', 'tinggi_cm', 'pertumbuhan_cm_per_bulan', 'update_terakhir', 'sudah_update_bulan_ini', 'akurasi_lokasi_m'];
     const sel = (v) => { let s = v === null || v === undefined ? '' : String(v); if (typeof v === 'string' && /^[=+\-@]/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-    const baris = rows.map((t) => [t.id, t.jenis, t.pemilik, t.lat, t.lng, t.tanam, t.terakhir ? t.kondisi : '', t.tinggi, t.tumbuh === null ? '' : bulat1(t.tumbuh), t.terakhir ? t.terakhir.bulan : '', t.sudahBulanIni ? 'ya' : 'tidak']);
+    const baris = rows.map((t) => [t.id, t.jenis, t.pemilik, t.lat, t.lng, t.tanam, t.terakhir ? t.kondisi : '', t.tinggi, t.tumbuh === null ? '' : bulat1(t.tumbuh), t.terakhir ? t.terakhir.bulan : '', t.sudahBulanIni ? 'ya' : 'tidak', t.akurasi_m === undefined ? '' : t.akurasi_m]);
     const csv = '﻿' + [kepala, ...baris].map((r) => r.map(sel).join(',')).join('\r\n');
     const a = h('a', { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })), download: `data-pohon-${A_.bulanIni()}.csv` });
     document.body.appendChild(a); a.click(); a.remove();

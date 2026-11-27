@@ -147,10 +147,11 @@
     <div class="loc">
       <div class="loc-bar">
         <strong>Lokasi pohon</strong>
-        <button type="button" id="d-gps" class="small-btn">📍 Pakai lokasi HP saya</button>
+        <button type="button" id="d-gps" class="small-btn">📍 Aktifkan lokasi</button>
       </div>
+      <p class="hint">Berdiri sedekat mungkin dengan pohon, lalu izinkan akses lokasi. Titik bisa digeser atau ditandai manual di peta.</p>
       <div id="map-pilih" class="map mini"></div>
-      <p id="d-koordinat" class="hint">Sentuh peta untuk menandai posisi pohon.</p>
+      <div id="d-gps-status" class="gps-status" role="status" aria-live="polite"></div>
     </div>
 
     <label class="kode-desa" hidden>Kode desa
@@ -159,6 +160,27 @@
 
     <button class="primary" type="submit" id="d-kirim">Daftarkan</button>
     <p id="d-msg" class="msg" role="status"></p>
+  </form>
+</dialog>
+
+<!-- ===== Perbarui lokasi pohon ===== -->
+<dialog id="dlg-lokasi">
+  <div class="dlg-head"><h3>Perbarui lokasi pohon</h3><button class="ghost" data-close aria-label="Tutup">✕</button></div>
+  <form id="form-lokasi" autocomplete="off" novalidate>
+    <p id="l-info" class="hint"></p>
+    <div class="loc">
+      <div class="loc-bar">
+        <strong>Lokasi baru</strong>
+        <button type="button" id="l-gps" class="small-btn">📍 Aktifkan lokasi</button>
+      </div>
+      <div id="map-lokasi" class="map mini"></div>
+      <div id="l-status" class="gps-status" role="status" aria-live="polite"></div>
+    </div>
+    <label class="kode-desa" hidden>Kode desa
+      <input id="l-kode" placeholder="tanya perangkat desa">
+    </label>
+    <button class="primary" type="submit" id="l-kirim">Simpan lokasi baru</button>
+    <p id="l-msg" class="msg" role="status"></p>
   </form>
 </dialog>
 

@@ -53,9 +53,16 @@ const Api = (() => {
       if (!p.jenis || !p.pemilik) return { ok: false, error: 'Jenis dan nama pemilik wajib diisi.' };
       const maks = db.pohon.reduce((a, t) => Math.max(a, parseInt(String(t.id).replace(/\D/g, ''), 10) || 0), 0);
       const id = 'POHON-' + String(maks + 1).padStart(4, '0');
-      db.pohon.push({ id, jenis: p.jenis, pemilik: p.pemilik, lat: p.lat, lng: p.lng, tanam: p.tanam || '', dibuat: new Date().toISOString() });
+      db.pohon.push({ id, jenis: p.jenis, pemilik: p.pemilik, lat: p.lat, lng: p.lng, tanam: p.tanam || '', dibuat: new Date().toISOString(), akurasi_m: p.akurasi === '' || p.akurasi == null ? '' : p.akurasi });
       simpanDemo(db);
       return { ok: true, id };
+    }
+    if (p.action === 'lokasi') {
+      const t = db.pohon.find((x) => x.id === p.id);
+      if (!t) return { ok: false, error: 'Kode pohon tidak ditemukan.' };
+      t.lat = p.lat; t.lng = p.lng; t.akurasi_m = p.akurasi === '' || p.akurasi == null ? '' : p.akurasi;
+      simpanDemo(db);
+      return { ok: true };
     }
     if (p.action === 'update') {
       const bulan = bulanKe(0);

@@ -21,7 +21,7 @@
   const deviceId = () => { let d = ls.get('pohon_device'); if (!d) { d = 'd' + Math.random().toString(36).slice(2) + Date.now().toString(36); ls.set('pohon_device', d); } return d; };
 
   const state = { pohon: [], update: [], byId: new Map(), filter: null, cari: '', mode: 'kondisi' };
-  let map, layer, pickMap, pickMarker, pickLatLng = null;
+  let map, layer, pickDaftar, pickLokasi, idLokasi = '';
 
   // ---------- Pesan kecil ----------
   let toastTimer;
@@ -203,7 +203,7 @@
     $('#d-judul').textContent = `${t.id} · ${t.jenis}`;
     const u = t.terakhir;
     $('#d-isi').innerHTML =
-      `<p class="detail-meta">Pemilik: ${esc(t.pemilik)}${t.tanam ? ' · ditanam ' + esc(t.tanam) : ''}<br>${kondisiTag(t.kondisi)}${t.tinggi !== null ? ' · tinggi ' + esc(t.tinggi) + ' cm' : ''}${t.tumbuh !== null ? ' · ' + fmtTumbuh(t.tumbuh) : ''}</p>` +
+      `<p class="detail-meta">Pemilik: ${esc(t.pemilik)}${t.tanam ? ' · ditanam ' + esc(t.tanam) : ''}<br>${kondisiTag(t.kondisi)}${t.tinggi !== null ? ' · tinggi ' + esc(t.tinggi) + ' cm' : ''}${t.tumbuh !== null ? ' · ' + fmtTumbuh(t.tumbuh) : ''}<br>📍 Lokasi: ${infoLokasi(t)}</p>` +
       (u && u.foto_id ? `<img class="detail-foto" src="${esc(fotoSrc(u.foto_id, 900))}" alt="Foto terbaru">` : '') +
       sparkline(t.riwayat) +
       `<h4 style="margin:10px 0 0">Riwayat</h4><div class="hist">` +
@@ -212,7 +212,7 @@
           <div><b>${esc(labelBulan(r.bulan))} — ${kondisiTag(r.kondisi)}</b>
           Tinggi ${r.tinggi_cm !== '' ? esc(r.tinggi_cm) + ' cm' : '-'}${r.diameter_cm !== '' ? ', diameter ' + esc(r.diameter_cm) + ' cm' : ''}<br>
           <span class="hint">oleh ${esc(r.pelapor)}${r.catatan ? ' · ' + esc(r.catatan) : ''}</span></div></div>`).join('') : '<p class="hint">Belum ada update.</p>') +
-      `</div><div class="btn-row"><button class="primary" data-isi="${esc(t.id)}">Update pohon ini</button></div>` +
+      `</div><div class="btn-row"><button class="primary" data-isi="${esc(t.id)}">Update pohon ini</button><button class="small-btn" data-lokasi="${esc(t.id)}">📍 Perbarui lokasi</button></div>` +
       `<details id="d-qr"><summary>Kode QR untuk ditempel di pohon</summary><div class="center" id="d-qr-isi"></div></details>`;
     $('#d-qr').ontoggle = (e) => { if (e.target.open && !$('#d-qr-isi').innerHTML) $('#d-qr-isi').innerHTML = qrBox(t.id); };
     $('#dlg-detail').showModal();
@@ -274,45 +274,113 @@
     } finally { tombol.disabled = false; tombol.textContent = 'Kirim update'; }
   }
 
-  // ---------- Form daftar pohon baru ----------
-  function setTitik(ll) {
-    pickLatLng = ll;
-    if (!pickMarker) pickMarker = L.marker(ll).addTo(pickMap); else pickMarker.setLatLng(ll);
-    $('#d-koordinat').textContent = `Lokasi dipilih: ${ll.lat.toFixed(6)}, ${ll.lng.toFixed(6)} (geser/sentuh peta untuk mengubah)`;
+  // ---------- Pemilih lokasi: GPS HP + peta (dipakai form daftar dan form perbarui lokasi) ----------
+  function buatPicker(cfg) {
+    const P = { map: null, marker: null, circle: null, ref: null, watch: null, timer: null, hasil: null, awal: true };
+    const status = (html, kelas) => { const el = $(cfg.status); el.innerHTML = html; el.className = 'gps-status ' + (kelas || ''); };
+    const tombol = (t) => { $(cfg.tombol).textContent = t; };
+    const kualitas = (a) => (a <= 10 ? ['sangat baik', 'ok'] : a <= 25 ? ['baik', 'ok'] : a <= 50 ? ['cukup', 'warn'] : ['rendah', 'bad']);
+
+    function taruh(ll, akurasi, manual) {
+      P.hasil = { lat: ll.lat, lng: ll.lng, akurasi: akurasi, manual: !!manual };
+      if (!P.marker) {
+        P.marker = L.marker(ll, { draggable: true }).addTo(P.map);
+        P.marker.on('dragend', () => { P.berhenti(); taruh(P.marker.getLatLng(), null, true); ringkas(); });
+      } else P.marker.setLatLng(ll);
+      if (akurasi) {
+        if (!P.circle) P.circle = L.circle(ll, { radius: akurasi, color: '#257de0', weight: 1, fillColor: '#257de0', fillOpacity: 0.12, interactive: false }).addTo(P.map);
+        else P.circle.setLatLng(ll).setRadius(akurasi);
+      } else if (P.circle) { P.map.removeLayer(P.circle); P.circle = null; }
+    }
+
+    function ringkas() {
+      const r = P.hasil; if (!r) return;
+      const koord = `${r.lat.toFixed(6)}, ${r.lng.toFixed(6)}`;
+      let teks, kelas;
+      if (r.manual) { teks = `📍 Lokasi ditandai manual di peta: ${koord}`; kelas = 'warn'; }
+      else {
+        const [q, k] = kualitas(r.akurasi); kelas = k;
+        teks = `✔ Lokasi dari GPS: ±${Math.round(r.akurasi)} m (akurasi ${q}). ${koord}`;
+        if (r.akurasi > 50) teks += '<br>Tips: pindah ke tempat terbuka tanpa atap, tunggu beberapa detik, lalu tekan “Ulangi lokasi”.';
+      }
+      if (P.ref) {
+        const jarak = Math.round(L.latLng(r.lat, r.lng).distanceTo(P.ref.getLatLng()));
+        teks += `<br>${jarak > 500 ? '⚠️ ' : ''}Jarak dari lokasi lama: ${jarak} m.`;
+      }
+      status(teks, kelas);
+    }
+
+    function galat(err, adaFix) {
+      P.berhenti();
+      if (adaFix) return ringkas();
+      status(err.code === 1
+        ? '🚫 <b>Izin lokasi ditolak.</b> Tekan ikon gembok 🔒 di samping alamat website → <b>Izin / Lokasi → Izinkan</b>, lalu tekan “Ulangi lokasi”. Pastikan juga Lokasi/GPS menyala di pengaturan HP. Atau tandai posisi manual di peta.'
+        : err.code === 2
+          ? '📵 Posisi tidak ditemukan. Nyalakan <b>Lokasi/GPS</b> di HP atau pindah ke tempat terbuka, lalu tekan “Ulangi lokasi”. Atau tandai manual di peta.'
+          : '⏱️ Terlalu lama mencari sinyal. Pindah ke tempat terbuka lalu tekan “Ulangi lokasi”, atau tandai manual di peta.', 'bad');
+    }
+    function selesai() {
+      P.berhenti();
+      if (P.hasil && !P.hasil.manual) ringkas();
+      else status('Lokasi belum didapat. Tekan “Ulangi lokasi” atau sentuh peta untuk menandai manual.', 'warn');
+    }
+
+    P.berhenti = () => {
+      if (P.watch !== null) navigator.geolocation.clearWatch(P.watch);
+      P.watch = null; clearTimeout(P.timer); tombol('📍 Ulangi lokasi');
+    };
+    P.siapkan = (pusat, zoom, ref) => {
+      P.berhenti();
+      if (!P.map) {
+        P.map = L.map(cfg.peta).setView(pusat, zoom);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Tiles © Esri' }).addTo(P.map);
+        P.map.on('click', (e) => { P.berhenti(); taruh(e.latlng, null, true); ringkas(); });
+      } else P.map.setView(pusat, zoom);
+      [P.marker, P.circle, P.ref].forEach((l) => l && P.map.removeLayer(l));
+      P.marker = P.circle = P.ref = null; P.hasil = null; P.awal = true;
+      if (ref) P.ref = L.circleMarker(ref, { radius: 8, color: '#666', weight: 2, fillColor: '#ccc', fillOpacity: 0.8, dashArray: '3 3' }).addTo(P.map).bindTooltip('Lokasi lama');
+      status('', ''); tombol('📍 Aktifkan lokasi');
+      setTimeout(() => P.map.invalidateSize(), 60);
+    };
+    P.mulaiGps = () => {
+      if (!navigator.geolocation) return status('HP/peramban ini tidak mendukung lokasi. Sentuh peta untuk menandai posisi pohon.', 'bad');
+      if (window.isSecureContext === false) return status('Lokasi hanya bisa dipakai lewat alamat yang diawali https://. Sentuh peta untuk menandai manual.', 'bad');
+      P.berhenti();
+      status('📡 Meminta lokasi… Jika muncul pertanyaan izin, pilih <b>Izinkan</b>.', 'busy'); tombol('📡 Mencari…');
+      let terbaik = Infinity;
+      P.watch = navigator.geolocation.watchPosition((p) => {
+        const a = p.coords.accuracy, ll = L.latLng(p.coords.latitude, p.coords.longitude);
+        if (a < terbaik) {
+          terbaik = a; taruh(ll, a, false);
+          if (P.awal) P.map.setView(ll, 19); else P.map.panTo(ll);
+          P.awal = false;
+        }
+        if (a <= 10) return selesai();
+        status(`📡 Mengunci lokasi… ±${Math.round(terbaik)} m. Tunggu beberapa detik sambil berdiri dekat pohon.`, 'busy');
+      }, (err) => galat(err, terbaik < Infinity), { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+      P.timer = setTimeout(selesai, 25000);
+    };
+    return P;
   }
+
+  // ---------- Form daftar pohon baru ----------
   function bukaDaftar() {
     $$('dialog[open]').forEach((d) => d.close());
-    pickLatLng = null; $('#form-daftar').reset(); $('#d-msg').textContent = '';
-    $('#d-koordinat').textContent = 'Sentuh peta untuk menandai posisi pohon.';
+    $('#form-daftar').reset(); pesan('#d-msg', '');
     $('#d-pemilik').value = ls.get('pohon_pelapor'); $('#d-kode').value = ls.get('pohon_kode');
     $('#dlg-daftar').showModal();
-    setTimeout(() => {
-      if (!pickMap) {
-        pickMap = L.map('map-pilih').setView(map ? map.getCenter() : CONFIG.PUSAT_PETA, map ? Math.max(map.getZoom(), 17) : 17);
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Tiles © Esri' }).addTo(pickMap);
-        pickMap.on('click', (e) => setTitik(e.latlng));
-      } else { pickMap.setView(map ? map.getCenter() : CONFIG.PUSAT_PETA, 17); }
-      if (pickMarker) { pickMap.removeLayer(pickMarker); pickMarker = null; }
-      pickMap.invalidateSize();
-    }, 60);
-  }
-  function pakaiGps() {
-    if (!navigator.geolocation) return pesan('#d-msg', 'HP/peramban ini tidak mendukung lokasi. Tandai di peta saja.', 'err');
-    pesan('#d-msg', 'Mencari lokasi… (izinkan akses lokasi bila diminta)');
-    navigator.geolocation.getCurrentPosition(
-      (p) => { const ll = L.latLng(p.coords.latitude, p.coords.longitude); pickMap.setView(ll, 19); setTitik(ll); pesan('#d-msg', ''); },
-      () => pesan('#d-msg', 'Lokasi tidak didapat. Tandai posisi pohon langsung di peta.', 'err'),
-      { enableHighAccuracy: true, timeout: 15000 });
+    pickDaftar.siapkan(map ? map.getCenter() : CONFIG.PUSAT_PETA, 17);
+    pickDaftar.mulaiGps(); // langsung minta izin lokasi
   }
   async function kirimDaftar(ev) {
     ev.preventDefault();
-    const jenis = $('#d-jenis').value.trim(), pemilik = $('#d-pemilik').value.trim();
+    const jenis = $('#d-jenis').value.trim(), pemilik = $('#d-pemilik').value.trim(), lok = pickDaftar.hasil;
     if (!jenis || !pemilik) return pesan('#d-msg', 'Isi jenis pohon dan nama pemilik.', 'err');
-    if (!pickLatLng) return pesan('#d-msg', 'Tandai lokasi pohon di peta dulu.', 'err');
+    if (!lok) return pesan('#d-msg', 'Lokasi belum didapat. Tekan “Aktifkan lokasi” atau sentuh peta untuk menandai posisi pohon.', 'err');
     const tombol = $('#d-kirim'); tombol.disabled = true; tombol.textContent = 'Mengirim…'; pesan('#d-msg', '');
     try {
       const r = await Api.post({
-        action: 'daftar', jenis, pemilik, lat: +pickLatLng.lat.toFixed(6), lng: +pickLatLng.lng.toFixed(6),
+        action: 'daftar', jenis, pemilik, lat: +lok.lat.toFixed(6), lng: +lok.lng.toFixed(6), akurasi: lok.akurasi ? Math.round(lok.akurasi) : '',
         tanam: $('#d-tanam').value, device: deviceId(), kode: $('#d-kode').value.trim(),
       });
       if (!r.ok) throw new Error(r.error || 'Gagal mendaftar.');
@@ -326,6 +394,36 @@
       pesan('#d-msg', e.message || 'Gagal mendaftar.', 'err');
     } finally { tombol.disabled = false; tombol.textContent = 'Daftarkan'; }
   }
+
+  // ---------- Perbarui lokasi pohon yang sudah terdaftar ----------
+  function bukaLokasi(id) {
+    const t = state.byId.get(id); if (!t) return;
+    $$('dialog[open]').forEach((d) => d.close());
+    idLokasi = id; pesan('#l-msg', ''); $('#l-kode').value = ls.get('pohon_kode');
+    $('#l-info').textContent = `${t.id} · ${t.jenis} milik ${t.pemilik}. Berdirilah sedekat mungkin dengan batang pohon, lalu izinkan akses lokasi.`;
+    $('#dlg-lokasi').showModal();
+    const ada = t.lat !== '' && t.lng !== '' && isFinite(t.lat) && isFinite(t.lng);
+    pickLokasi.siapkan(ada ? [t.lat, t.lng] : (map ? map.getCenter() : CONFIG.PUSAT_PETA), 18, ada ? [t.lat, t.lng] : null);
+    pickLokasi.mulaiGps();
+  }
+  async function kirimLokasi(ev) {
+    ev.preventDefault();
+    const lok = pickLokasi.hasil;
+    if (!lok) return pesan('#l-msg', 'Lokasi baru belum didapat. Tekan “Aktifkan lokasi” atau sentuh peta.', 'err');
+    const tombol = $('#l-kirim'); tombol.disabled = true; tombol.textContent = 'Menyimpan…'; pesan('#l-msg', '');
+    try {
+      const r = await Api.post({
+        action: 'lokasi', id: idLokasi, lat: +lok.lat.toFixed(6), lng: +lok.lng.toFixed(6), akurasi: lok.akurasi ? Math.round(lok.akurasi) : '',
+        device: deviceId(), kode: $('#l-kode').value.trim(),
+      });
+      if (!r.ok) throw new Error(r.error === 'Aksi tidak dikenal.' ? 'Fitur ini butuh Apps Script versi terbaru. Lihat PANDUAN.md bagian "Perbarui Apps Script".' : (r.error || 'Gagal menyimpan.'));
+      ls.set('pohon_kode', $('#l-kode').value.trim());
+      await muat(); $('#dlg-lokasi').close(); toast('Lokasi pohon diperbarui ✔');
+    } catch (e) {
+      pesan('#l-msg', e.message || 'Gagal menyimpan.', 'err');
+    } finally { tombol.disabled = false; tombol.textContent = 'Simpan lokasi baru'; }
+  }
+  const infoLokasi = (t) => (t.akurasi_m !== '' && t.akurasi_m !== undefined && t.akurasi_m !== null ? `GPS ±${esc(t.akurasi_m)} m` : 'ditandai di peta (tanpa data akurasi)');
 
   // ---------- Mulai ----------
   function init() {
@@ -342,7 +440,13 @@
     $('#btn-daftar').onclick = bukaDaftar;
     $('#form-update').onsubmit = kirimUpdate;
     $('#form-daftar').onsubmit = kirimDaftar;
-    $('#d-gps').onclick = pakaiGps;
+    pickDaftar = buatPicker({ peta: 'map-pilih', status: '#d-gps-status', tombol: '#d-gps' });
+    pickLokasi = buatPicker({ peta: 'map-lokasi', status: '#l-status', tombol: '#l-gps' });
+    $('#d-gps').onclick = () => pickDaftar.mulaiGps();
+    $('#l-gps').onclick = () => pickLokasi.mulaiGps();
+    $('#form-lokasi').onsubmit = kirimLokasi;
+    $('#dlg-daftar').addEventListener('close', () => pickDaftar.berhenti());
+    $('#dlg-lokasi').addEventListener('close', () => pickLokasi.berhenti());
     $('#u-id').oninput = infoPohonDipilih;
     $('#cari').oninput = (e) => { state.cari = e.target.value; renderList(); };
     $('#u-foto').onchange = async (e) => {
@@ -358,6 +462,7 @@
       if (f) { state.filter = f.dataset.f || null; renderLegend(); renderMap(); renderList(); }
       const d = e.target.closest('.item[data-detail]'); if (d) bukaDetail(d.dataset.detail);
       const i = e.target.closest('[data-isi]'); if (i) isiUpdate(i.dataset.isi);
+      const lk = e.target.closest('[data-lokasi]'); if (lk) bukaLokasi(lk.dataset.lokasi);
     });
 
     const deep = new URLSearchParams(location.search).get('pohon');
