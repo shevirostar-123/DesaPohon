@@ -2,11 +2,16 @@
   'use strict';
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-  const WARNA = { Sehat: '#2e9e5b', Cukup: '#e5a50a', Buruk: '#d64545', Mati: '#5f6b76', Belum: '#9aa5b1' };
+  // Palet status (hijau/kuning/merah) + abu-abu netral. Selalu dipasangkan dengan ikon dan teks, tidak pernah warna saja.
+  const WARNA = { Sehat: '#0aac23', Cukup: '#fbb315', Buruk: '#dc3c3d', Mati: '#5f6b76', Belum: '#9aa5b1' };
+  const IKON = { Sehat: '🌳', Cukup: '🌿', Buruk: '🥀', Mati: '🪵', Belum: '❔' };
+  const NAMA = { Sehat: 'Sehat', Cukup: 'Cukup', Buruk: 'Buruk', Mati: 'Mati', Belum: 'Belum ada data' };
+  const RAMP = ['#84b9f3', '#519ced', '#257de0', '#1b64be', '#0f4a96']; // biru, terang → gelap = tumbuh lebih cepat
   const NAMA_BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const bulanIni = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
+  const idxBulan = (b) => { const [y, m] = String(b).split('-'); return (+y) * 12 + (+m); };
   const labelBulan = (b) => { const [y, m] = String(b).split('-'); return (NAMA_BULAN[+m - 1] || b) + ' ' + y; };
   const fotoSrc = (f, w = 800) => !f ? '' : String(f).startsWith('data:') ? f : `https://drive.google.com/thumbnail?id=${encodeURIComponent(f)}&sz=w${w}`;
   const ls = {
@@ -15,7 +20,7 @@
   };
   const deviceId = () => { let d = ls.get('pohon_device'); if (!d) { d = 'd' + Math.random().toString(36).slice(2) + Date.now().toString(36); ls.set('pohon_device', d); } return d; };
 
-  const state = { pohon: [], update: [], byId: new Map(), filter: null, cari: '' };
+  const state = { pohon: [], update: [], byId: new Map(), filter: null, cari: '', mode: 'kondisi' };
   let map, layer, pickMap, pickMarker, pickLatLng = null;
 
   // ---------- Pesan kecil ----------
@@ -36,6 +41,16 @@
       t.terakhir = t.riwayat[t.riwayat.length - 1] || null;
       t.kondisi = t.terakhir ? t.terakhir.kondisi : 'Belum';
       t.sudahBulanIni = !!(t.terakhir && t.terakhir.bulan === bulanIni());
+      // Pertumbuhan: selisih tinggi antar pengukuran berurutan, dibagi jumlah bulan di antaranya (cm per bulan)
+      const ukur = t.riwayat.filter((u) => u.tinggi_cm !== '' && u.tinggi_cm !== null && isFinite(u.tinggi_cm))
+        .map((u) => ({ b: idxBulan(u.bulan), bulan: u.bulan, h: +u.tinggi_cm }));
+      t.interval = [];
+      for (let i = 1; i < ukur.length; i++) {
+        const d = ukur[i].b - ukur[i - 1].b;
+        if (d > 0) t.interval.push({ bulan: ukur[i].bulan, laju: (ukur[i].h - ukur[i - 1].h) / d });
+      }
+      t.tumbuh = t.interval.length ? t.interval[t.interval.length - 1].laju : null;
+      t.tinggi = ukur.length ? ukur[ukur.length - 1].h : null;
     });
   }
   const semua = () => [...state.byId.values()];
@@ -56,7 +71,7 @@
   function banner(t, err) { const b = $('#banner'); b.hidden = !t; b.textContent = t || ''; b.className = 'banner' + (err ? ' err' : ''); }
 
   // ---------- Tampilan ----------
-  function render() { renderStats(); renderLegend(); renderMap(); renderList(); renderDatalist(); infoPohonDipilih(); }
+  function render() { renderStats(); renderLegend(); renderMap(); renderList(); renderDatalist(); infoPohonDipilih(); if (window.Dashboard) Dashboard.render(); }
 
   function renderStats() {
     const a = semua();
@@ -82,6 +97,32 @@
 
   const lolos = (t) => (!state.filter || t.kondisi === state.filter);
 
+  const kondisiTag = (k) => `<span class="ktag"><span class="dot" style="background:${WARNA[k] || WARNA.Belum}"></span>${IKON[k] || ''} ${esc(NAMA[k] || k)}</span>`;
+  const fmtTumbuh = (v) => `${v > 0 ? '+' : ''}${Math.round(v * 10) / 10} cm/bln`;
+
+  function hitungSkala() {
+    const v = semua().map((t) => t.tumbuh).filter((x) => x !== null && isFinite(x));
+    if (state.mode !== 'tumbuh' || !v.length) return null;
+    return { lo: Math.min(...v), hi: Math.max(...v) };
+  }
+  function warnaMarker(t, sk) {
+    if (state.mode !== 'tumbuh') return WARNA[t.kondisi];
+    if (!sk || t.tumbuh === null) return WARNA.Belum;
+    if (sk.hi === sk.lo) return RAMP[2];
+    return RAMP[Math.min(RAMP.length - 1, Math.floor(((t.tumbuh - sk.lo) / (sk.hi - sk.lo)) * RAMP.length))];
+  }
+  function renderSkala(sk) {
+    const el = $('#skala');
+    if (state.mode !== 'tumbuh') { el.hidden = true; return; }
+    el.hidden = false;
+    if (!sk) { el.innerHTML = '<span class="hint">Belum ada data pertumbuhan: butuh minimal 2 pengukuran tinggi per pohon.</span>'; return; }
+    const step = (sk.hi - sk.lo) / RAMP.length, kecil = sk.hi - sk.lo < 5;
+    const f = (x) => (kecil ? x.toFixed(1) : Math.round(x));
+    const bins = sk.hi === sk.lo ? `<span><i style="background:${RAMP[2]}"></i>${f(sk.lo)}</span>` :
+      RAMP.map((c, i) => `<span><i style="background:${c}"></i>${f(sk.lo + i * step)}–${f(sk.lo + (i + 1) * step)}</span>`).join('');
+    el.innerHTML = `<b>Pertumbuhan tinggi (cm per bulan)</b><div class="scale">${bins}<span><i style="background:${WARNA.Belum}"></i>Belum cukup data</span></div>`;
+  }
+
   function renderMap() {
     if (!map) {
       map = L.map('map', { zoomControl: true }).setView(CONFIG.PUSAT_PETA, CONFIG.ZOOM_AWAL);
@@ -95,12 +136,13 @@
       });
     }
     layer.clearLayers();
+    const skala = hitungSkala(); renderSkala(skala);
     const pts = [];
     semua().filter(lolos).forEach((t) => {
       if (!isFinite(t.lat) || !isFinite(t.lng) || t.lat === '' || t.lng === '') return;
       const stale = !t.sudahBulanIni;
       const m = L.circleMarker([t.lat, t.lng], {
-        radius: 10, fillColor: WARNA[t.kondisi], fillOpacity: stale ? 0.65 : 0.95,
+        radius: 10, fillColor: warnaMarker(t, skala), fillOpacity: stale ? 0.65 : 0.95,
         color: stale ? '#222' : '#fff', weight: stale ? 2 : 2.5, dashArray: stale ? '3 3' : null,
       }).addTo(layer);
       m.bindPopup(() => popup(t));
@@ -113,8 +155,8 @@
     const u = t.terakhir;
     const foto = u && u.foto_id ? `<img src="${esc(fotoSrc(u.foto_id, 400))}" alt="Foto ${esc(t.id)}" loading="lazy">` : '';
     return `<b>${esc(t.id)} · ${esc(t.jenis)}</b><br>Pemilik: ${esc(t.pemilik)}<br>` +
-      `Kondisi: <b style="color:${WARNA[t.kondisi]}">${t.kondisi === 'Belum' ? 'Belum ada data' : esc(t.kondisi)}</b>` +
-      (u ? `<br>Tinggi: ${u.tinggi_cm !== '' ? esc(u.tinggi_cm) + ' cm' : '-'} · ${esc(labelBulan(u.bulan))}` : '') +
+      `Kondisi: ${kondisiTag(t.kondisi)}` +
+      (u ? `<br>Tinggi: ${u.tinggi_cm !== '' ? esc(u.tinggi_cm) + ' cm' : '-'}${t.tumbuh !== null ? ' (' + fmtTumbuh(t.tumbuh) + ')' : ''} · ${esc(labelBulan(u.bulan))}` : '') +
       (t.sudahBulanIni ? '' : '<br><i>Belum update bulan ini</i>') + foto +
       `<button class="pop-btn" data-detail="${esc(t.id)}">Lihat detail &amp; riwayat</button>`;
   }
@@ -161,13 +203,13 @@
     $('#d-judul').textContent = `${t.id} · ${t.jenis}`;
     const u = t.terakhir;
     $('#d-isi').innerHTML =
-      `<p class="detail-meta">Pemilik: ${esc(t.pemilik)}${t.tanam ? ' · ditanam ' + esc(t.tanam) : ''}</p>` +
+      `<p class="detail-meta">Pemilik: ${esc(t.pemilik)}${t.tanam ? ' · ditanam ' + esc(t.tanam) : ''}<br>${kondisiTag(t.kondisi)}${t.tinggi !== null ? ' · tinggi ' + esc(t.tinggi) + ' cm' : ''}${t.tumbuh !== null ? ' · ' + fmtTumbuh(t.tumbuh) : ''}</p>` +
       (u && u.foto_id ? `<img class="detail-foto" src="${esc(fotoSrc(u.foto_id, 900))}" alt="Foto terbaru">` : '') +
       sparkline(t.riwayat) +
       `<h4 style="margin:10px 0 0">Riwayat</h4><div class="hist">` +
       (t.riwayat.length ? [...t.riwayat].reverse().map((r) => `
         <div class="hist-row">${r.foto_id ? `<img src="${esc(fotoSrc(r.foto_id, 200))}" alt="" loading="lazy">` : ''}
-          <div><b>${esc(labelBulan(r.bulan))} — <span style="color:${WARNA[r.kondisi] || '#333'}">${esc(r.kondisi)}</span></b>
+          <div><b>${esc(labelBulan(r.bulan))} — ${kondisiTag(r.kondisi)}</b>
           Tinggi ${r.tinggi_cm !== '' ? esc(r.tinggi_cm) + ' cm' : '-'}${r.diameter_cm !== '' ? ', diameter ' + esc(r.diameter_cm) + ' cm' : ''}<br>
           <span class="hint">oleh ${esc(r.pelapor)}${r.catatan ? ' · ' + esc(r.catatan) : ''}</span></div></div>`).join('') : '<p class="hint">Belum ada update.</p>') +
       `</div><div class="btn-row"><button class="primary" data-isi="${esc(t.id)}">Update pohon ini</button></div>` +
@@ -294,6 +336,9 @@
 
     $$('.tabs button').forEach((b) => (b.onclick = () => pindahTab(b.dataset.tab)));
     $('#btn-refresh').onclick = () => muat(true);
+    $$('#mode-peta button').forEach((b) => (b.onclick = () => {
+      state.mode = b.dataset.mode; $$('#mode-peta button').forEach((x) => x.classList.toggle('on', x === b)); renderMap();
+    }));
     $('#btn-daftar').onclick = bukaDaftar;
     $('#form-update').onsubmit = kirimUpdate;
     $('#form-daftar').onsubmit = kirimDaftar;
@@ -319,5 +364,6 @@
     muat().then(() => { if (deep) { isiUpdate(deep.toUpperCase()); } });
   }
 
+  window.PohonApp = { esc, WARNA, IKON, NAMA, bulanIni, labelBulan, idxBulan, semua, state, bukaDetail, kondisiTag, fmtTumbuh };
   init();
 })();

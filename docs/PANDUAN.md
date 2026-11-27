@@ -60,3 +60,11 @@ Buka file `config.js` dengan Notepad, lalu ubah:
 - **Tanpa login = tidak bisa 100% anti-iseng.** `KODE_DESA` mengurangi risiko tapi bukan pengaman kuat. Karena semua tercatat, entri iseng mudah ditemukan dan dihapus.
 - Tanpa internet, warga masih bisa melihat data terakhir yang pernah dimuat, tetapi tidak bisa mengirim update.
 - Tanpa `APPS_SCRIPT_URL`, website berjalan dalam **mode contoh** (data palsu di perangkat sendiri) untuk mencoba tampilan.
+
+---
+
+## Dashboard dan peta pertumbuhan (pembaruan)
+- Tab **Dashboard**: ringkasan angka, daftar **Perlu perhatian** (pohon mati/buruk, tidak tumbuh, lama tidak diupdate), kondisi sekarang, grafik update per bulan, rata-rata pertumbuhan tinggi, dan tabel per jenis pohon. Ada filter jenis pohon dan tombol **Unduh data (CSV)**.
+- Tab **Peta**: tombol **Warnai titik** untuk memilih warna berdasarkan **Kondisi** atau **Pertumbuhan** (makin gelap = makin cepat tumbuh).
+- Pertumbuhan dihitung dari selisih tinggi antar update (cm per bulan), jadi butuh minimal 2 kali pengisian tinggi per pohon.
+- Pembaruan ini hanya mengubah website. Google Sheet dan Apps Script tidak perlu diubah.

@@ -114,3 +114,57 @@ summary { cursor: pointer; font-weight: 600; }
 @media print {
   .top, .tabs, .banner { display: none; }
 }
+
+/* ===== Peta: mode warna ===== */
+.mode { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: .85rem; color: var(--abu); flex-wrap: wrap; }
+.mode button { border: 1px solid var(--garis); background: var(--kartu); border-radius: 999px; padding: 5px 12px; font: inherit; font-size: .85rem; cursor: pointer; }
+.mode button.on { background: var(--hijau); color: #fff; border-color: var(--hijau); font-weight: 600; }
+.skala { background: var(--kartu); border: 1px solid var(--garis); border-radius: 12px; padding: 8px 10px; margin-bottom: 8px; font-size: .8rem; }
+.scale { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; color: var(--abu); }
+.scale span { display: inline-flex; align-items: center; gap: 5px; }
+.scale i { width: 14px; height: 10px; border-radius: 3px; display: inline-block; }
+.ktag { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+
+/* ===== Dashboard ===== */
+.filters { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-bottom: 12px; }
+.filters label { min-width: 160px; flex: 1; max-width: 260px; }
+.kpi { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
+.tile { background: var(--kartu); border: 1px solid var(--garis); border-radius: 12px; padding: 10px 12px; display: grid; gap: 2px; }
+.tile .tl { font-size: .78rem; color: var(--abu); }
+.tile b { font-size: 1.7rem; line-height: 1.1; font-weight: 700; }
+.tile .ts { font-size: .75rem; color: var(--abu); }
+.chartcard { background: var(--kartu); border: 1px solid var(--garis); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+.chartcard h3 { font-size: 1rem; }
+.chartcard .sub { margin: 2px 0 10px; color: var(--abu); font-size: .83rem; }
+.chartcard svg { width: 100%; max-width: 480px; height: auto; display: block; margin: 0 auto; }
+.chartcard svg text { font-family: inherit; }
+.chartcard svg rect[tabindex]:focus { outline: none; stroke: #191919; stroke-width: 1.5; }
+.chartcard .list { margin-top: 0; }
+.ok-msg { margin: 0; color: #006c10; font-weight: 600; }
+.kosong { padding: 10px 0; }
+.segbar { display: flex; gap: 2px; height: 28px; }
+.seg { border-radius: 4px; display: flex; align-items: center; padding-left: 8px; font-size: .78rem; font-weight: 700; overflow: visible; white-space: nowrap; min-width: 6px; }
+.lg { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 10px 0 4px; font-size: .82rem; color: var(--abu); }
+.lg span { display: inline-flex; align-items: center; gap: 5px; }
+.lg i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.tv { margin-top: 8px; font-size: .85rem; }
+.tv-scroll { overflow-x: auto; }
+.tv table { border-collapse: collapse; width: 100%; margin-top: 6px; }
+.tv th, .tv td { border-bottom: 1px solid var(--garis); padding: 5px 8px; text-align: left; font-variant-numeric: tabular-nums; }
+.tv th { color: var(--abu); font-weight: 600; }
+.jrow { display: grid; grid-template-columns: minmax(80px, 1.1fr) 2fr 52px 56px; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--garis); font-size: .9rem; }
+.jhead { border-top: 0; color: var(--abu); font-size: .75rem; font-weight: 600; padding-bottom: 2px; }
+.jrow .r { text-align: right; font-variant-numeric: tabular-nums; }
+.jn { display: grid; }
+.jn small { color: var(--abu); font-size: .75rem; }
+.thin { display: flex; gap: 2px; height: 8px; border-radius: 999px; overflow: hidden; }
+.thin i { display: block; min-width: 3px; }
+.tip { position: fixed; z-index: 4000; background: #fff; color: var(--teks); border: 1px solid var(--garis); box-shadow: 0 4px 16px rgba(0,0,0,.15); border-radius: 10px; padding: 8px 10px; font-size: .82rem; pointer-events: none; max-width: 240px; }
+.tip-t { font-weight: 700; margin-bottom: 4px; }
+.tip-r { display: flex; align-items: center; gap: 6px; }
+.tip-r i { width: 14px; height: 3px; border-radius: 2px; flex: none; }
+.tip-r span { color: var(--abu); }
+@media (min-width: 720px) {
+  .kpi { grid-template-columns: repeat(3, 1fr); }
+  .dashgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+}
