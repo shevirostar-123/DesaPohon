@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pemantauan Pohon Desa</title>
+<meta name="theme-color" content="#1f7a4d">
+<link rel="stylesheet" href="lib/leaflet/leaflet.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="top">
+  <div>
+    <h1 id="judul">Pemantauan Pohon</h1>
+    <p id="sub">Pantau pertumbuhan pohon di desa kita</p>
+  </div>
+  <button id="btn-refresh" class="ghost" title="Muat ulang data" aria-label="Muat ulang data">⟳</button>
+</header>
+
+<div id="banner" class="banner" hidden></div>
+
+<main>
+  <!-- ===== PETA ===== -->
+  <section id="tab-peta" class="tab">
+    <div id="stats" class="stats"></div>
+    <div id="legend" class="legend" role="group" aria-label="Saring berdasarkan kondisi"></div>
+    <div id="map" class="map"></div>
+    <p class="hint">Titik bergaris putus-putus = belum update bulan ini. Sentuh titik untuk melihat detail.</p>
+  </section>
+
+  <!-- ===== UPDATE ===== -->
+  <section id="tab-update" class="tab" hidden>
+    <h2>Update pohon bulan ini</h2>
+    <form id="form-update" class="card" autocomplete="off" novalidate>
+      <label>Kode pohon
+        <input id="u-id" list="dl-pohon" placeholder="mis. POHON-0042" required autocapitalize="characters">
+        <datalist id="dl-pohon"></datalist>
+      </label>
+      <p id="u-info" class="hint"></p>
+
+      <label>Nama Anda
+        <input id="u-pelapor" maxlength="80" placeholder="Nama pengisi" required>
+      </label>
+
+      <div class="row2">
+        <label>Tinggi (cm)
+          <input id="u-tinggi" type="number" inputmode="decimal" min="0" max="10000" placeholder="perkiraan boleh">
+        </label>
+        <label>Diameter batang (cm)
+          <input id="u-diameter" type="number" inputmode="decimal" min="0" max="1000" placeholder="boleh kosong">
+        </label>
+      </div>
+
+      <fieldset>
+        <legend>Kondisi pohon</legend>
+        <div class="chips" id="u-kondisi">
+          <label class="chip c-sehat"><input type="radio" name="kondisi" value="Sehat"><span>🌳 Sehat<small>daun hijau, tumbuh</small></span></label>
+          <label class="chip c-cukup"><input type="radio" name="kondisi" value="Cukup"><span>🌿 Cukup<small>tumbuh pelan</small></span></label>
+          <label class="chip c-buruk"><input type="radio" name="kondisi" value="Buruk"><span>🥀 Buruk<small>layu / sakit</small></span></label>
+          <label class="chip c-mati"><input type="radio" name="kondisi" value="Mati"><span>🪵 Mati<small>sudah mati</small></span></label>
+        </div>
+      </fieldset>
+
+      <label>Foto pohon
+        <input id="u-foto" type="file" accept="image/*" capture="environment">
+      </label>
+      <img id="u-preview" class="preview" alt="" hidden>
+
+      <label>Catatan (boleh kosong)
+        <textarea id="u-catatan" maxlength="500" rows="2" placeholder="mis. sudah disiram, ada hama di daun"></textarea>
+      </label>
+
+      <label class="kode-desa" hidden>Kode desa
+        <input id="u-kode" placeholder="tanya perangkat desa">
+      </label>
+
+      <button class="primary" type="submit" id="u-kirim">Kirim update</button>
+      <p id="u-msg" class="msg" role="status"></p>
+    </form>
+
+    <p class="center">Pohon belum terdaftar? <button class="link" id="btn-daftar">Daftarkan pohon baru</button></p>
+  </section>
+
+  <!-- ===== DAFTAR ===== -->
+  <section id="tab-daftar" class="tab" hidden>
+    <h2>Semua pohon</h2>
+    <input id="cari" type="search" placeholder="Cari kode, jenis, atau nama pemilik" aria-label="Cari pohon">
+    <div id="filter-daftar" class="legend small"></div>
+    <div id="list" class="list"></div>
+  </section>
+</main>
+
+<nav class="tabs" aria-label="Menu utama">
+  <button data-tab="peta" class="on">🗺️<span>Peta</span></button>
+  <button data-tab="update">✏️<span>Update</span></button>
+  <button data-tab="daftar">📋<span>Daftar</span></button>
+</nav>
+
+<!-- ===== Detail pohon ===== -->
+<dialog id="dlg-detail">
+  <div class="dlg-head"><h3 id="d-judul"></h3><button class="ghost" data-close aria-label="Tutup">✕</button></div>
+  <div id="d-isi"></div>
+</dialog>
+
+<!-- ===== Daftar pohon baru ===== -->
+<dialog id="dlg-daftar">
+  <div class="dlg-head"><h3>Daftarkan pohon baru</h3><button class="ghost" data-close aria-label="Tutup">✕</button></div>
+  <form id="form-daftar" autocomplete="off" novalidate>
+    <label>Jenis pohon
+      <input id="d-jenis" list="dl-jenis" maxlength="60" placeholder="mis. Mangga" required>
+      <datalist id="dl-jenis">
+        <option>Mangga</option><option>Alpukat</option><option>Durian</option><option>Rambutan</option>
+        <option>Jati</option><option>Mahoni</option><option>Sengon</option><option>Trembesi</option>
+        <option>Kelapa</option><option>Nangka</option><option>Jambu</option><option>Lainnya</option>
+      </datalist>
+    </label>
+    <label>Nama pemilik / penanam
+      <input id="d-pemilik" maxlength="80" required>
+    </label>
+    <label>Tanggal tanam (boleh kosong)
+      <input id="d-tanam" type="date">
+    </label>
+
+    <div class="loc">
+      <div class="loc-bar">
+        <strong>Lokasi pohon</strong>
+        <button type="button" id="d-gps" class="small-btn">📍 Pakai lokasi HP saya</button>
+      </div>
+      <div id="map-pilih" class="map mini"></div>
+      <p id="d-koordinat" class="hint">Sentuh peta untuk menandai posisi pohon.</p>
+    </div>
+
+    <label class="kode-desa" hidden>Kode desa
+      <input id="d-kode" placeholder="tanya perangkat desa">
+    </label>
+
+    <button class="primary" type="submit" id="d-kirim">Daftarkan</button>
+    <p id="d-msg" class="msg" role="status"></p>
+  </form>
+</dialog>
+
+<!-- ===== Berhasil daftar ===== -->
+<dialog id="dlg-ok">
+  <div class="dlg-head"><h3>Pohon terdaftar ✔</h3><button class="ghost" data-close aria-label="Tutup">✕</button></div>
+  <div id="ok-isi" class="center"></div>
+</dialog>
+
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script src="lib/leaflet/leaflet.js"></script>
+<script src="config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
